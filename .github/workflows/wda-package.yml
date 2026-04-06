@@ -38,37 +38,28 @@ jobs:
         with:
           xcode-version: "${{ env.XCODE_VERSION }}"
 
-      - name: Build and Package IPA for iOS
+      - name: Build Full IPA for Hao Studio
         run: |
-          # 1. Build trực tiếp bằng xcodebuild (Ép ra hàng Full)
+          # 1. Ép Xcode build ra bản thô cực nặng
           xcodebuild -project WebDriverAgent.xcodeproj \
             -scheme WebDriverAgentRunner \
             -destination "generic/platform=iOS" \
             -configuration Debug \
-            -derivedDataPath build_output \
+            -derivedDataPath output \
             clean build CODE_SIGNING_ALLOWED=NO
 
-          # 2. Tạo cấu trúc Payload
+          # 2. Tạo Payload
           mkdir -p Payload
           
-          # 3. Tìm chính xác cái folder .app vừa build xong
-          # Nó thường nằm trong Build/Products/Debug-iphoneos/
-          APP_PATH=$(find build_output -name "WebDriverAgentRunner-Runner.app" -type d | head -n 1)
+          # 3. Lệnh "Vét sạch" - Copy toàn bộ folder .app kèm Frameworks
+          # Lưu ý: Phải dùng đường dẫn chính xác từ DerivedData
+          cp -R output/Build/Products/Debug-iphoneos/WebDriverAgentRunner-Runner.app Payload/
           
-          if [ -z "$APP_PATH" ]; then
-            echo "ĐÉO TÌM THẤY APP HẢO ƠI!"
-            exit 1
-          fi
-
-          # 4. Gom hàng (Dùng ditto để hốt cả Frameworks)
-          ditto "$APP_PATH" "Payload/WebDriverAgentRunner-Runner.app"
+          # 4. Đóng gói IPA
+          zip -r WebDriverAgent_Hao_XIN.ipa Payload
           
-          # 5. Đóng gói IPA
-          zip -r ${{ env.IPA_NAME_IOS }} Payload
-          
-          # Check xem có lên được >15MB không
-          du -sh ${{ env.IPA_NAME_IOS }}
-
+          # 5. Show dung lượng - Nếu >10MB là Hảo thắng!
+          du -sh WebDriverAgent_Hao_XIN.ipa
       - name: Create a zip file of WebDriverAgentRunner-Runner.app for tvOS
         run: sh $GITHUB_WORKSPACE/Scripts/ci/build-real.sh
         env:
