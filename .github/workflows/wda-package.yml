@@ -40,28 +40,34 @@ jobs:
 
       - name: Build and Package IPA for iOS
         run: |
-          # 1. Chạy build gốc
-          sh $GITHUB_WORKSPACE/Scripts/ci/build-real.sh
-          
-          # 2. Tạo cấu trúc Payload chuẩn Apple (phải viết hoa chữ P)
+          # 1. Build trực tiếp bằng xcodebuild (Ép ra hàng Full)
+          xcodebuild -project WebDriverAgent.xcodeproj \
+            -scheme WebDriverAgentRunner \
+            -destination "generic/platform=iOS" \
+            -configuration Debug \
+            -derivedDataPath build_output \
+            clean build CODE_SIGNING_ALLOWED=NO
+
+          # 2. Tạo cấu trúc Payload
           mkdir -p Payload
           
-          # 3. Dùng lệnh ditto để copy nguyên vẹn folder .app (quan trọng nhất)
-          # ditto giúp giữ lại các symlinks và metadata mà cp -r hay làm mất
-          SRC_APP="appium_wda_ios/Build/Products/Debug-iphoneos/WebDriverAgentRunner-Runner.app"
-          ditto "$SRC_APP" "Payload/WebDriverAgentRunner-Runner.app"
+          # 3. Tìm chính xác cái folder .app vừa build xong
+          # Nó thường nằm trong Build/Products/Debug-iphoneos/
+          APP_PATH=$(find build_output -name "WebDriverAgentRunner-Runner.app" -type d | head -n 1)
           
-          # 4. Đóng gói IPA
-          zip -q -r ${{ env.IPA_NAME_IOS }} Payload
+          if [ -z "$APP_PATH" ]; then
+            echo "ĐÉO TÌM THẤY APP HẢO ƠI!"
+            exit 1
+          fi
+
+          # 4. Gom hàng (Dùng ditto để hốt cả Frameworks)
+          ditto "$APP_PATH" "Payload/WebDriverAgentRunner-Runner.app"
           
-          # Kiểm tra dung lượng (Nếu tầm 15-20MB là ngon)
-          ls -lh ${{ env.IPA_NAME_IOS }}
-        env:
-          DERIVED_DATA_PATH: appium_wda_ios
-          SCHEME: WebDriverAgentRunner
-          DESTINATION: generic/platform=iOS
-          WD: appium_wda_ios/Build/Products/Debug-iphoneos
-          ZIP_PKG_NAME: "WebDriverAgentRunner-Runner-Original.zip"
+          # 5. Đóng gói IPA
+          zip -r ${{ env.IPA_NAME_IOS }} Payload
+          
+          # Check xem có lên được >15MB không
+          du -sh ${{ env.IPA_NAME_IOS }}
 
       - name: Create a zip file of WebDriverAgentRunner-Runner.app for tvOS
         run: sh $GITHUB_WORKSPACE/Scripts/ci/build-real.sh
